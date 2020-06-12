@@ -1,0 +1,94 @@
+---
+title: "Prediction Assignment"
+author: "Renuka"
+date: "12/06/2020"
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Getting and cleaning data
+## Load the functions and static variables
+
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(e1071)
+library(randomForest)
+set.seed(1)
+```
+
+## Download the files and read them into memory
+
+```{r}
+train.data.raw <- read.csv("E:/R/pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+test.data.raw <- read.csv("E:/R/pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+## Remove unnecessary columns
+
+```{r}
+# Drop the first 7 columns as they're unnecessary for predicting.
+train.data.clean1 <- train.data.raw[,8:length(colnames(train.data.raw))]
+test.data.clean1 <- test.data.raw[,8:length(colnames(test.data.raw))]
+
+# Drop colums with NAs
+train.data.clean1 <- train.data.clean1[, colSums(is.na(train.data.clean1)) == 0] 
+test.data.clean1 <- test.data.clean1[, colSums(is.na(test.data.clean1)) == 0] 
+
+# Check for near zero variance predictors and drop them if necessary
+nzv <- nearZeroVar(train.data.clean1,saveMetrics=TRUE)
+zero.var.ind <- sum(nzv$nzv)
+
+if ((zero.var.ind>0)) {
+  train.data.clean1 <- train.data.clean1[,nzv$nzv==FALSE]
+}
+```
+
+## Slice the data for cross validation
+
+```{r}
+in.training <- createDataPartition(train.data.clean1$classe, p=0.70, list=F)
+train.data.final <- train.data.clean1[in.training, ]
+validate.data.final <- train.data.clean1[-in.training, ]
+```
+
+## Model development
+## Train the model
+
+```{r}
+control.parms <- trainControl(method="cv", 5)
+rf.model <- train(classe ~ ., data=train.data.final, method="rf",
+                  trControl=control.parms, ntree=251)
+rf.model
+```
+
+## Run the model
+
+```{r}
+results <- predict(rf.model, 
+                   test.data.clean1[, -length(names(test.data.clean1))])
+results
+```
+
+## Decision tree visualization
+
+```{r}
+treeModel <- rpart(classe ~ ., data=train.data.final, method="class")
+fancyRpartPlot(treeModel)
+```
